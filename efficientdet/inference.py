@@ -27,7 +27,6 @@ import time
 ## Added by David
 import sys
 sys.path.append(os.path.dirname(__file__))
-print(sys.path)
 
 from absl import logging
 import numpy as np
