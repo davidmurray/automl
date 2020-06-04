@@ -23,6 +23,7 @@ import copy
 import functools
 import os
 import time
+from typing import Text, Dict, Any, List, Tuple, Union
 
 ## Added by David
 import sys
@@ -32,7 +33,6 @@ from absl import logging
 import numpy as np
 from PIL import Image
 import tensorflow.compat.v1 as tf
-from typing import Text, Dict, Any, List, Tuple, Union
 import yaml
 
 import anchors
@@ -167,7 +167,8 @@ def build_model(model_name: Text, inputs: tf.Tensor, **kwargs):
   """
   model_arch = det_model_fn.get_model_arch(model_name)
   cls_outputs, box_outputs = utils.build_model_with_precision(
-      kwargs.get('precision', None), model_arch, inputs, model_name, **kwargs)
+      kwargs.get('precision', None), model_arch, inputs, False, model_name,
+      **kwargs)
   if kwargs.get('precision', None):
     # Post-processing has multiple places with hard-coded float32.
     # TODO(tanmingxing): Remove them once post-process can adpat to dtypes.
@@ -693,8 +694,17 @@ class ServingDriver(object):
         self.sess, self.sess.graph_def, output_names)
     return graphdef
 
-  def export(self, output_dir, frozen_pb=True, tflite_path=None):
-    """Export a saved model."""
+  def export(self,
+             output_dir: Text,
+             tflite_path: Text = None,
+             tensorrt: Text = None):
+    """Export a saved model, frozen graph, and potential tflite/tensorrt model.
+
+    Args:
+      output_dir: the output folder for saved model.
+      tflite_path: the path for saved tflite file.
+      tensorrt: If not None, must be {'FP32', 'FP16', 'INT8'}.
+    """
     signitures = self.signitures
     signature_def_map = {
         'serving_default':
@@ -713,15 +723,14 @@ class ServingDriver(object):
     logging.info('Model saved at %s', output_dir)
 
     # also save freeze pb file.
-    if frozen_pb:
-      graphdef = self.freeze()
-      pb_path = os.path.join(output_dir, self.model_name + '_frozen.pb')
-      tf.io.gfile.GFile(pb_path, 'wb').write(graphdef.SerializeToString())
-      logging.info('Free graph saved at %s', pb_path)
+    graphdef = self.freeze()
+    pb_path = os.path.join(output_dir, self.model_name + '_frozen.pb')
+    tf.io.gfile.GFile(pb_path, 'wb').write(graphdef.SerializeToString())
+    logging.info('Frozen graph saved at %s', pb_path)
 
     if tflite_path:
+      height, width = utils.parse_image_size(self.params['image_size'])
       input_name = signitures['image_arrays'].op.name
-      height, width = self.params['image_size']
       input_shapes = {input_name: [None, height, width, 3]}
       converter = tf.lite.TFLiteConverter.from_saved_model(
           output_dir,
@@ -729,12 +738,24 @@ class ServingDriver(object):
           input_shapes=input_shapes,
           output_arrays=[signitures['prediction'].op.name])
       converter.experimental_new_converter = True
-      supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
-      converter.target_spec.supported_ops = supported_ops
+      converter.target_spec.supported_ops = [tf.lite.OpsSet.TFLITE_BUILTINS]
       tflite_model = converter.convert()
 
-      with tf.io.gfile.GFile(tflite_path, 'wb') as f:
-        f.write(tflite_model)
+      tf.io.gfile.GFile(tflite_path, 'wb').write(tflite_model)
+      logging.info('TFLite is saved at %s', tflite_path)
+
+    if tensorrt:
+      from tensorflow.python.compiler.tensorrt import trt  # pylint: disable=g-direct-tensorflow-import,g-import-not-at-top
+      sess_config = tf.ConfigProto(gpu_options=tf.GPUOptions(allow_growth=True))
+      trt_path = os.path.join(output_dir, 'tensorrt_' + tensorrt.lower())
+      trt.create_inference_graph(
+          None,
+          None,
+          precision_mode=tensorrt,
+          input_saved_model_dir=output_dir,
+          output_saved_model_dir=trt_path,
+          session_config=sess_config)
+      logging.info('TensorRT model is saved at %s', trt_path)
 
 
 class InferenceDriver(object):

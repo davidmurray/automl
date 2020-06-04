@@ -21,10 +21,9 @@ from __future__ import print_function
 
 import ast
 import copy
+from typing import Any, Dict, Text
 import six
 import tensorflow.compat.v1 as tf
-
-from typing import Any, Dict, Text
 import yaml
 
 
@@ -173,6 +172,7 @@ def default_detection_configs():
 
   # input preprocessing parameters
   h.image_size = 640  # An integer or a string WxH such as 640x320.
+  h.target_size = None
   h.input_rand_hflip = True
   h.train_scale_min = 0.1
   h.train_scale_max = 2.0
@@ -185,6 +185,8 @@ def default_detection_configs():
   h.num_classes = 90
   h.skip_crowd_during_training = True
   h.label_id_mapping = None
+  h.max_instances_per_image = 100  # Default to 100 for COCO.
+  h.regenerate_source_id = False
 
   # model architecture
   h.min_level = 3
@@ -218,8 +220,8 @@ def default_detection_configs():
   h.iou_loss_weight = 1.0
   # regularization l2 loss.
   h.weight_decay = 4e-5
-  # enable bfloat
-  h.use_tpu = True
+  # use horovod for multi-gpu training. If None, use TF default.
+  h.strategy = None  # 'tpu', 'horovod', None
   # precision: one of 'float32', 'mixed_float16', 'mixed_bfloat16'.
   h.precision = None  # If None, use float32.
 
@@ -231,7 +233,7 @@ def default_detection_configs():
   h.apply_bn_for_resampling = True
   h.conv_after_downsample = False
   h.conv_bn_act_pattern = False
-  h.use_native_resize_op = False
+  h.use_native_resize_op = True
   h.pooling_type = None
 
   # version.
@@ -241,6 +243,7 @@ def default_detection_configs():
 
   # No stochastic depth in default.
   h.survival_prob = None
+  h.img_summary_steps = None
 
   h.lr_decay_method = 'cosine'
   h.moving_average_decay = 0.9998
