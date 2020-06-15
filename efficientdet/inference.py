@@ -26,7 +26,11 @@ import time
 from typing import Text, Dict, Any, List, Tuple, Union
 
 ## Added by David
+# This is to make sure that efficientdet can do it's imports without having to modify this file to either:
+# 1) do relative imports
+# 2) to absolute imports (social_distaning.<...>)
 import sys
+
 sys.path.append(os.path.dirname(__file__))
 
 from absl import logging
