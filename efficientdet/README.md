@@ -64,8 +64,7 @@ We have provided a list of EfficientDet checkpoints and results as follows:
 |     EfficientDet-D6 ([ckpt](https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/efficientdet-d6.tar.gz), [val](https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/val/d6_coco_val.txt), [test-dev](https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/testdev/d6_coco_test-dev2017.txt))    | 51.7 | 71.2 | 56.0 | 34.1 | 55.2 | 64.1 | 51.3 | | 51.9M  |  225.6B  |
 |     EfficientDet-D7 ([ckpt](https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/efficientdet-d7.tar.gz), [val](https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/val/d7_coco_val_softnms.txt), [test-dev](https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/testdev/d7_coco_test-dev2017_softnms.txt))    | 53.7 | 72.4 | 58.4 | 35.8 | 57.0 | 66.3 | 53.4 | | 51.9M  |  324.8B  |
 
-** <em>val</em> denotes validation results, <em>test-dev</em> denotes test-dev2017 results. AP<sup>val</sup> is for validation accuracy, all other AP results in the table are for COCO test-dev2017. All accuracy numbers are for single-model single-scale without ensemble or test-time augmentation.
-** EfficientDet-D0 to D6 are trained with 300 epochs and tested with normal NMS, EfficientDet-D7 is trained with 600 epochs and tested with soft-NMS.
+** <em>val</em> denotes validation results, <em>test-dev</em> denotes test-dev2017 results. AP<sup>val</sup> is for validation accuracy, all other AP results in the table are for COCO test-dev2017. All accuracy numbers are for single-model single-scale without ensemble or test-time augmentation.  EfficientDet-D0 to D6 are trained for 300 epochs and tested with hard NMS, D7 is trained for 600 epochs and tested with soft-NMS (nms_config={"method":"gaussian"}).
 
 
 ## 3. Export SavedModel, frozen graph, tensort models, or tflite.
@@ -275,9 +274,9 @@ Finetune needs to use --ckpt rather than --backbone_ckpt.
         --model_name=efficientdet-d0 \
         --model_dir=/tmp/efficientdet-d0-finetune  \
         --ckpt=efficientdet-d0  \
-        --train_batch_size=32 \
-        --eval_batch_size=32 --eval_samples=1024 \
-        --num_examples_per_epoch=5717 --num_epochs=15  \
+        --train_batch_size=64 \
+        --eval_batch_size=64 --eval_samples=1024 \
+        --num_examples_per_epoch=5717 --num_epochs=50  \
         --hparams=voc_config.yaml
 
 If you want to do inference for custom data, you can run
@@ -297,7 +296,7 @@ Install [horovod](https://github.com/horovod/horovod#id6).
 Create a config file for the PASCAL VOC dataset called voc_config.yaml and put this in it.
 
       num_classes: 20
-      moving_average_decay: 0
+      var_freeze_expr: '(efficientnet|fpn_cells|resample_p6)'
       label_id_mapping: {0: background, 1: aeroplane, 2: bicycle, 3: bird, 4: boat, 5: bottle, 6: bus, 7: car, 8: cat, 9: chair, 10: cow, 11: diningtable, 12: dog, 13: horse, 14: motorbike, 15: person, 16: pottedplant, 17: sheep, 18: sofa, 19: train, 20: tvmonitor}
 
 Download efficientdet coco checkpoint.
@@ -313,9 +312,9 @@ Finetune needs to use --ckpt rather than --backbone_ckpt.
         --model_name=efficientdet-d0 \
         --model_dir=/tmp/efficientdet-d0-finetune  \
         --ckpt=efficientdet-d0  \
-        --train_batch_size=8 \
-        --eval_batch_size=8 --eval_samples=1024 \
-        --num_examples_per_epoch=5717 --num_epochs=1  \
+        --train_batch_size=64 \
+        --eval_batch_size=64 --eval_samples=1024 \
+        --num_examples_per_epoch=5717 --num_epochs=50  \
         --hparams=voc_config.yaml
         --strategy=horovod
 
