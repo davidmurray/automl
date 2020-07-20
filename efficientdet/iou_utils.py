@@ -1,3 +1,4 @@
+# Lint as: python3
 # Copyright 2020 Google Research. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,16 +18,10 @@
 Distance-IoU Loss: Faster and Better Learning for Bounding Box Regression.
 https://arxiv.org/pdf/1911.08287.pdf
 """
-
-from __future__ import absolute_import
-from __future__ import division
-# gtype import
-from __future__ import print_function
-
 import math
-import numpy as np
-import tensorflow.compat.v1 as tf
 from typing import Union, Text
+import numpy as np
+import tensorflow as tf
 
 FloatType = Union[tf.Tensor, float, np.float32, np.float64]
 
@@ -42,12 +37,21 @@ def _get_v(b1_height: FloatType, b1_width: FloatType, b2_height: FloatType,
         tf.math.divide_no_nan(width, height))
     v = 4 * ((arctan / math.pi)**2)
 
-    def _grad_v(dv, variables=None):
+    def _grad_v(dv):
+      """Grad for eager mode."""
+      gdw = dv * 8 * arctan * height / (math.pi**2)
+      gdh = -dv * 8 * arctan * width / (math.pi**2)
+      return [gdh, gdw]
+
+    def _grad_v_graph(dv, variables):
+      """Grad for graph mode."""
       gdw = dv * 8 * arctan * height / (math.pi**2)
       gdh = -dv * 8 * arctan * width / (math.pi**2)
       return [gdh, gdw], tf.gradients(v, variables, grad_ys=dv)
 
-    return v, _grad_v
+    if tf.compat.v1.executing_eagerly_outside_functions():
+      return v, _grad_v
+    return v, _grad_v_graph
 
   return _get_grad_v(b2_height, b2_width)
 
@@ -169,18 +173,19 @@ def iou_loss(pred_boxes: FloatType,
 
   iou_loss_list = []
   for i in range(0, len(pred_boxes_list), 4):
-    pred_boxes = pred_boxes_list[i: i + 4]
-    target_boxes = target_boxes_list[i: i + 4]
+    pred_boxes = pred_boxes_list[i:i + 4]
+    target_boxes = target_boxes_list[i:i + 4]
 
     # Compute mask.
     t_ymin, t_xmin, t_ymax, t_xmax = target_boxes
-    mask = tf.not_equal((t_ymax - t_ymin) * (t_xmax - t_xmin), 0)
+    mask = tf.math.logical_and(t_ymax > t_ymin, t_xmax > t_xmin)
     mask = tf.cast(mask, t_ymin.dtype)
     # Loss should be mask * (1 - iou) = mask - masked_iou.
     pred_boxes = [b * mask for b in pred_boxes]
+    target_boxes = [b * mask for b in target_boxes]
     iou_loss_list.append(
-        mask - tf.squeeze(_iou_per_anchor(pred_boxes, target_boxes, iou_type)))
+        mask *
+        (1 - tf.squeeze(_iou_per_anchor(pred_boxes, target_boxes, iou_type))))
   if len(iou_loss_list) == 1:
     return iou_loss_list[0]
   return tf.reduce_sum(tf.stack(iou_loss_list), 0)
-

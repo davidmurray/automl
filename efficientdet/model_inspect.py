@@ -49,7 +49,7 @@ flags.DEFINE_integer('bm_runs', 10, 'Number of benchmark runs.')
 flags.DEFINE_string('tensorrt', None, 'TensorRT mode: {None, FP32, FP16, INT8}')
 flags.DEFINE_bool('delete_logdir', True, 'Whether to delete logdir.')
 flags.DEFINE_bool('freeze', False, 'Freeze graph.')
-flags.DEFINE_bool('xla', False, 'Run with xla optimization.')
+flags.DEFINE_bool('use_xla', False, 'Run with xla optimization.')
 flags.DEFINE_integer('batch_size', 1, 'Batch size for inference.')
 
 flags.DEFINE_string('ckpt_path', None, 'checkpoint dir used for eval.')
@@ -93,7 +93,8 @@ class ModelInspector(object):
                saved_model_dir: Text = None,
                tflite_path: Text = None,
                batch_size: int = 1,
-               hparams: Text = ''):
+               hparams: Text = '',
+               **kwargs):
     self.model_name = model_name
     self.logdir = logdir
     self.tensorrt = tensorrt
@@ -111,6 +112,12 @@ class ModelInspector(object):
     # If batch size is 0, then build a graph with dynamic batch size.
     self.batch_size = batch_size or None
     self.labels_shape = [batch_size, model_config.num_classes]
+
+    # A hack to make flag consistent with nms configs.
+    if kwargs.get('score_thresh', None):
+      model_config.nms_configs.score_thresh = kwargs['score_thresh']
+    if kwargs.get('max_output_size', None):
+      model_config.nms_configs.max_output_size = kwargs['max_output_size']
 
     height, width = model_config.image_size
     if model_config.data_format == 'channels_first':
@@ -340,7 +347,6 @@ class ModelInspector(object):
     else:
       sess_config = tf.ConfigProto()
 
-    # rewriter_config_pb2.RewriterConfig.OFF
     sess_config.graph_options.rewrite_options.dependency_optimization = 2
     if self.use_xla:
       sess_config.graph_options.optimizer_options.global_jit_level = (
@@ -466,13 +472,15 @@ def main(_):
       model_name=FLAGS.model_name,
       logdir=FLAGS.logdir,
       tensorrt=FLAGS.tensorrt,
-      use_xla=FLAGS.xla,
+      use_xla=FLAGS.use_xla,
       ckpt_path=FLAGS.ckpt_path,
       export_ckpt=FLAGS.export_ckpt,
       saved_model_dir=FLAGS.saved_model_dir,
       tflite_path=FLAGS.tflite_path,
       batch_size=FLAGS.batch_size,
-      hparams=FLAGS.hparams)
+      hparams=FLAGS.hparams,
+      score_thresh=FLAGS.min_score_thresh,
+      max_output_size=FLAGS.max_boxes_to_draw)
   inspector.run_model(
       FLAGS.runmode,
       input_image=FLAGS.input_image,
@@ -489,5 +497,6 @@ def main(_):
 
 if __name__ == '__main__':
   logging.set_verbosity(logging.WARNING)
+  tf.enable_v2_tensorshape()
   tf.disable_eager_execution()
   app.run(main)

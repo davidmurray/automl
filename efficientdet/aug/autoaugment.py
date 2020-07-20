@@ -37,16 +37,9 @@ try:
 except ImportError:
   from tensorflow.contrib import image as image_ops  # pylint: disable=g-import-not-at-top
 
-try:
-  # tensorflow_probability are recommended, but they only support tf2.
-  import tensorflow_probability as tfp  # pylint: disable=g-import-not-at-top
-except ImportError:
-  import tensorflow.distributions as tfp  # pylint: disable=g-import-not-at-top
-
 # This signifies the max integer that the controller RNN could predict for the
 # augmentation scheme.
 _MAX_LEVEL = 10.
-
 
 # Represents an invalid bounding box that is used for checking for padding
 # lists of bounding box coordinates for a few augmentation operations
@@ -1134,7 +1127,7 @@ def sharpness(image, factor):
   strides = [1, 1, 1, 1]
   with tf.device('/cpu:0'):
     degenerate = tf.nn.depthwise_conv2d(
-      image, kernel, strides, padding='VALID', rate=[1, 1])
+        image, kernel, strides, padding='VALID', rate=[1, 1])
   degenerate = tf.clip_by_value(degenerate, 0.0, 255.0)
   degenerate = tf.squeeze(tf.cast(degenerate, tf.uint8), [0])
 
@@ -1565,6 +1558,7 @@ def select_and_apply_random_policy_augmix(policies,
   policy_to_select = tf.random_uniform([], maxval=len(policies), dtype=tf.int32)
   # Note that using tf.case instead of tf.conds would result in significantly
   # larger graphs and would even break export for some larger policies.
+  import tensorflow_probability as tfp  # pylint: disable=g-import-not-at-top
   ws = tfp.distributions.Dirichlet([alpha] * mixture_width).sample()
   m = tfp.distributions.Beta(alpha, alpha).sample()
   mix = tf.zeros_like(image, dtype=tf.float32)
@@ -1690,7 +1684,6 @@ def distort_image_with_autoaugment(image,
       cutout_bbox_const=50,
       translate_bbox_const=120))
 
-  with tf.device('/cpu:0'):
-    return build_and_apply_nas_policy(policy, image, bboxes,
-                                      augmentation_hparams, use_augmix,
-                                      mixture_width, mixture_depth, alpha)
+  return build_and_apply_nas_policy(policy, image, bboxes,
+                                    augmentation_hparams, use_augmix,
+                                    mixture_width, mixture_depth, alpha)
