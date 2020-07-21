@@ -29,7 +29,7 @@ from keras import efficientdet_keras
 
 flags.DEFINE_string('image_path', None, 'Location of test image.')
 flags.DEFINE_string('output_dir', None, 'Directory of annotated output images.')
-flags.DEFINE_string('checkpoint', None, 'Location of the checkpoint to run.')
+flags.DEFINE_string('model_dir', None, 'Location of the checkpoint to run.')
 flags.DEFINE_string('model_name', 'efficientdet-d0', 'Model name to use.')
 flags.DEFINE_string('hparams', '', 'Comma separated k=v pairs or a yaml file')
 flags.DEFINE_bool('debug', False, 'If true, run function in eager for debug.')
@@ -61,7 +61,7 @@ def main(_):
   model = efficientdet_keras.EfficientDetModel(config=config)
   height, width = utils.parse_image_size(config['image_size'])
   model.build((1, height, width, 3))
-  model.load_weights(FLAGS.checkpoint)
+  model.load_weights(tf.train.latest_checkpoint(FLAGS.model_dir))
   model.summary()
 
   @tf.function
