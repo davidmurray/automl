@@ -1,4 +1,3 @@
-# Lint as: python3
 # Copyright 2020 Google Research. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -63,12 +62,13 @@ flags.DEFINE_bool(
     'and this flag has no effect.')
 flags.DEFINE_string('model_dir', None, 'Location of model_dir')
 
+flags.DEFINE_string('pretrained_ckpt', None,
+                    'Start training from this EfficientDet checkpoint.')
+
 flags.DEFINE_string(
     'hparams', '', 'Comma separated k=v pairs of hyperparameters or a module'
     ' containing attributes to use as hyperparameters.')
 flags.DEFINE_integer('batch_size', 64, 'training batch size')
-flags.DEFINE_integer('eval_samples', 5000, 'The number of samples for '
-                     'evaluation.')
 flags.DEFINE_integer('iterations_per_loop', 100,
                      'Number of iterations per TPU training loop')
 flags.DEFINE_string(
@@ -149,12 +149,13 @@ def main(_):
       raise RuntimeError('You must specify --validation_file_pattern '
                          'for evaluation.')
 
+  steps_per_epoch = FLAGS.num_examples_per_epoch // FLAGS.batch_size
   params = dict(
       config.as_dict(),
       model_name=FLAGS.model_name,
       iterations_per_loop=FLAGS.iterations_per_loop,
       model_dir=FLAGS.model_dir,
-      num_examples_per_epoch=FLAGS.num_examples_per_epoch,
+      steps_per_epoch=steps_per_epoch,
       strategy=FLAGS.strategy,
       batch_size=FLAGS.batch_size // ds_strategy.num_replicas_in_sync,
       num_shards=ds_strategy.num_replicas_in_sync,
@@ -171,6 +172,9 @@ def main(_):
     file_pattern = (
         FLAGS.training_file_pattern
         if is_training else FLAGS.validation_file_pattern)
+    if not file_pattern:
+      raise ValueError('No matching files.')
+
     return dataloader.InputReader(
         file_pattern,
         is_training=is_training,
@@ -203,20 +207,22 @@ def main(_):
                     params['alpha'],
                     params['gamma'],
                     label_smoothing=params['label_smoothing'],
-                    reduction=tf.keras.losses.Reduction.NONE)
+                    reduction=tf.keras.losses.Reduction.NONE),
+            'seg_loss':
+                tf.keras.losses.SparseCategoricalCrossentropy(from_logits=True)
         })
-    ckpt_path = tf.train.latest_checkpoint(FLAGS.model_dir)
-    if ckpt_path:
+
+    if FLAGS.pretrained_ckpt:
+      ckpt_path = tf.train.latest_checkpoint(FLAGS.pretrained_ckpt)
       model.load_weights(ckpt_path)
-    model.freeze_vars(params['var_freeze_expr'])
+    os.makedirs(FLAGS.model_dir, exist_ok=True)
     model.fit(
         get_dataset(True, params=params),
         epochs=params['num_epochs'],
-        steps_per_epoch=FLAGS.num_examples_per_epoch,
+        steps_per_epoch=steps_per_epoch,
         callbacks=train_lib.get_callbacks(params, FLAGS.profile),
-        validation_data=get_dataset(False, params=params),
-        validation_steps=FLAGS.eval_samples)
-  model.save_weights(os.path.join(FLAGS.model_dir, 'model'))
+        validation_data=get_dataset(False, params=params))
+  model.save_weights(os.path.join(FLAGS.model_dir, 'ckpt-final'))
 
 
 if __name__ == '__main__':

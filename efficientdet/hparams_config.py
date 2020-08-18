@@ -13,18 +13,12 @@
 # limitations under the License.
 # ==============================================================================
 """Hparams for model architecture and trainer."""
-
-from __future__ import absolute_import
-from __future__ import division
-# gtype import
-from __future__ import print_function
-
 import ast
 import collections
 import copy
 from typing import Any, Dict, Text
 import six
-import tensorflow.compat.v1 as tf
+import tensorflow as tf
 import yaml
 
 
@@ -119,7 +113,7 @@ class Config(object):
 
   def save_to_yaml(self, yaml_file_path):
     """Write a dictionary into a yaml file."""
-    with tf.gfile.Open(yaml_file_path, 'w') as f:
+    with tf.io.gfile.GFile(yaml_file_path, 'w') as f:
       yaml.dump(self.as_dict(), f, default_flow_style=False)
 
   def parse_from_str(self, config_str: Text) -> Dict[Any, Any]:
@@ -181,12 +175,13 @@ def default_detection_configs():
   h.image_size = 640  # An integer or a string WxH such as 640x320.
   h.target_size = None
   h.input_rand_hflip = True
-  h.train_scale_min = 0.1
-  h.train_scale_max = 2.0
+  h.jitter_min = 0.1
+  h.jitter_max = 2.0
   h.autoaugment_policy = None
   h.use_augmix = False
   # mixture_width, mixture_depth, alpha
   h.augmix_params = (3, -1, 1)
+  h.sample_image = None
 
   # dataset specific parameters
   # TODO(tanmingxing): update this to be 91 for COCO, and 21 for pascal.
@@ -195,7 +190,7 @@ def default_detection_configs():
   h.heads = ['object_detection']  # 'object_detection', 'segmentation'
 
   h.skip_crowd_during_training = True
-  h.label_id_mapping = None
+  h.label_map = 'coco'  # a dict or a string of 'coco'/'voc'.
   h.max_instances_per_image = 100  # Default to 100 for COCO.
   h.regenerate_source_id = False
 
@@ -279,7 +274,7 @@ def default_detection_configs():
   h.var_freeze_expr = None
 
   # A temporary flag to switch between legacy and keras models.
-  h.use_keras_model = None
+  h.use_keras_model = True
 
   # unused.
   h.resnet_depth = 50

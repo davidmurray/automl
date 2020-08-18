@@ -1,4 +1,3 @@
-# Lint as: python3
 # Copyright 2020 Google Research. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -17,14 +16,12 @@
 import os
 from absl import app
 from absl import flags
-from absl import logging
 import numpy as np
 from PIL import Image
 import tensorflow as tf
 
 import hparams_config
 import inference
-import utils
 from keras import efficientdet_keras
 
 flags.DEFINE_string('image_path', None, 'Location of test image.')
@@ -43,7 +40,7 @@ def main(_):
   # !wget https://user-images.githubusercontent.com/11736571/77320690-099af300-6d37-11ea-9d86-24f14dc2d540.png -O tmp/img.png
   # !wget https://storage.googleapis.com/cloud-tpu-checkpoints/efficientdet/coco/efficientdet-d0.tar.gz -O tmp/efficientdet-d0.tar.gz
   # !tar zxf tmp/efficientdet-d0.tar.gz -C tmp
-  imgs = [np.array(Image.open(FLAGS.image_path))]
+  imgs = [np.array(Image.open(FLAGS.image_path))] * 2
   # Create model config.
   config = hparams_config.get_efficientdet_config('efficientdet-d0')
   config.is_training_bn = False
@@ -59,8 +56,7 @@ def main(_):
 
   # Create and run the model.
   model = efficientdet_keras.EfficientDetModel(config=config)
-  height, width = utils.parse_image_size(config['image_size'])
-  model.build((1, height, width, 3))
+  model.build((None, None, None, 3))
   model.load_weights(tf.train.latest_checkpoint(FLAGS.model_dir))
   model.summary()
 
@@ -68,6 +64,7 @@ def main(_):
   def f(imgs):
     return model(imgs, training=False, post_mode='global')
 
+  imgs = tf.convert_to_tensor(imgs, dtype=tf.uint8)
   boxes, scores, classes, valid_len = f(imgs)
 
   # Visualize results.
@@ -78,6 +75,7 @@ def main(_):
         boxes[i].numpy()[:length],
         classes[i].numpy().astype(np.int)[:length],
         scores[i].numpy()[:length],
+        label_map=config.label_map,
         min_score_thresh=config.nms_configs.score_thresh,
         max_boxes_to_draw=config.nms_configs.max_output_size)
     output_image_path = os.path.join(FLAGS.output_dir, str(i) + '.jpg')
@@ -88,6 +86,6 @@ def main(_):
 if __name__ == '__main__':
   flags.mark_flag_as_required('image_path')
   flags.mark_flag_as_required('output_dir')
-  flags.mark_flag_as_required('checkpoint')
-  logging.set_verbosity(logging.WARNING)
+  flags.mark_flag_as_required('model_dir')
+  # logging.set_verbosity(logging.WARNING)
   app.run(main)

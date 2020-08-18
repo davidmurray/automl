@@ -1,4 +1,3 @@
-# Lint as: python3
 # Copyright 2020 Google Research. All Rights Reserved.
 #
 # Licensed under the Apache License, Version 2.0 (the "License");
@@ -22,8 +21,6 @@ import math
 from typing import Union, Text
 import numpy as np
 import tensorflow as tf
-from tensorflow.python.framework.ops import executing_eagerly_outside_functions # pylint:disable=g-direct-tensorflow-import
-
 FloatType = Union[tf.Tensor, float, np.float32, np.float64]
 
 
@@ -50,7 +47,7 @@ def _get_v(b1_height: FloatType, b1_width: FloatType, b2_height: FloatType,
       gdh = -dv * 8 * arctan * width / (math.pi**2)
       return [gdh, gdw], tf.gradients(v, variables, grad_ys=dv)
 
-    if executing_eagerly_outside_functions():
+    if tf.compat.v1.executing_eagerly_outside_functions():
       return v, _grad_v
     return v, _grad_v_graph
 
@@ -110,11 +107,13 @@ def _iou_per_anchor(pred_boxes: FloatType,
     return giou_v
 
   assert iou_type in ('diou', 'ciou')
-  p_center = tf.stack([(p_ymin + p_ymax) / 2, (p_xmin + p_xmax) / 2])
-  t_center = tf.stack([(t_ymin + t_ymax) / 2, (t_xmin + t_xmax) / 2])
-  euclidean = tf.linalg.norm(t_center - p_center)
+  p_center = tf.stack([(p_ymin + p_ymax) / 2, (p_xmin + p_xmax) / 2], axis=-1)
+  t_center = tf.stack([(t_ymin + t_ymax) / 2, (t_xmin + t_xmax) / 2], axis=-1)
+  euclidean = tf.linalg.norm(t_center - p_center, axis=-1)
   diag_length = tf.linalg.norm(
-      [enclose_ymax - enclose_ymin, enclose_xmax - enclose_xmin])
+      tf.stack([enclose_ymax - enclose_ymin, enclose_xmax - enclose_xmin],
+               axis=-1),
+      axis=-1)
   diou_v = iou_v - tf.math.divide_no_nan(euclidean**2, diag_length**2)
   if iou_type == 'diou':  # diou is the distance iou.
     return diou_v
