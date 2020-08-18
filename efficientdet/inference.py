@@ -18,7 +18,6 @@ import functools
 import os
 import time
 from typing import Text, Dict, Any, List, Tuple, Union
-<<<<<<< HEAD
 
 ## Added by David
 # This is to make sure that efficientdet can do it's imports without having to modify this file to either:
@@ -28,8 +27,6 @@ import sys
 
 sys.path.append(os.path.dirname(__file__))
 
-=======
->>>>>>> 872e5ab7d031c097886c0359c163a2fdaf49abc1
 from absl import logging
 import numpy as np
 from PIL import Image
